@@ -1,0 +1,78 @@
+version: "3"
+ 
+services:
+   jenkins:
+       build:
+         context: ./src/main/resources/jenkins
+         dockerfile: Dockerfile
+       container_name: jenkins
+       hostname: 'jenkins'
+       networks:
+           - ci
+       ports:
+           - "8080:8080"
+           - '50000:50000'
+       volumes:
+       - '/var/run/docker.sock:/var/run/docker.sock'
+       - '$JENKINS_HOME:/var/jenkins_home'
+ 
+   gitlab:
+       image: gitlab/gitlab-ce:13.8.1-ce.0
+       container_name: gitlab
+       hostname: 'gitlab'
+       networks:
+           - ci
+       environment:
+           - GITLAB_HOST=localhost
+           - GITLAB_PORT=8000
+           - GITLAB_SSH_PORT=8022
+       ports:
+           - "8000:80"
+           - "8022:22"
+       volumes:
+       - '$GITLAB_HOME/config:/etc/gitlab'
+       - '$GITLAB_HOME/logs:/var/log/gitlab'
+       - '$GITLAB_HOME/data:/var/opt/gitlab'
+ 
+   sonarqube:
+       image: sonarqube:8.6.1-community
+       container_name: sonar
+       hostname: 'sonarqube'
+       networks:
+           - ci
+           - sonarnet
+       environment:
+           - sonar.jdbc.username=sonar
+           - sonar.jdbc.password=sonar
+           - sonar.jdbc.url=jdbc:postgresql://postgresdb:5432/sonarqube
+       ports:
+       - "9000:9000"
+       - "9092:9092"
+       volumes:
+       - '$SONAR_HOME/logs:/opt/sonarqube/logs'
+       - '$SONAR_HOME/data:/opt/sonarqube/data'
+       - '$SONAR_HOME/extensions:/opt/sonarqube/extensions'
+       - '$SONAR_HOME/bundled-plugins:/opt/sonarqube/lib/bundled-plugins'
+       - '$SONAR_HOME/sonarqube-community-branch-plugin-1.6.0.jar:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin.jar'
+       - '$SONAR_HOME/sonarqube-community-branch-plugin-1.6.0.jar:/opt/sonarqube/lib/common/sonarqube-community-branch-plugin.jar'
+  
+   postgresdb:
+       image: postgres:12.1
+       container_name: postgres
+       hostname: 'postgresdb'
+       networks:
+           - ci
+           - sonarnet
+       environment:
+           - POSTGRES_USER=sonar
+           - POSTGRES_PASSWORD=sonar
+           - POSTGRES_DB=sonarqube
+       volumes:
+       - '$POSTGRESQL_HOME/sonarqube_db:/var/lib/postgresql'
+       - '$POSTGRESQL_HOME/postgresql_data:/var/lib/postgresql/data'
+ 
+networks:
+  ci:
+    driver: bridge
+  sonarnet:
+    driver: bridge

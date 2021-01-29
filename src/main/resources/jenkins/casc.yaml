@@ -1,0 +1,150 @@
+credentials:
+  system:
+    domainCredentials:
+    - credentials:
+      - usernamePassword:
+          scope: GLOBAL
+          id: gitlab_login
+          username: root
+          password: gitlabpw
+          description: "GitLab Login (user & password)"
+      - gitLabApiTokenImpl:
+          scope: SYSTEM
+          id: gitlab_token
+          apiToken: "${GITLAB_TOKEN}"
+          description: "GitLab Token"
+      - string:
+          scope: GLOBAL
+          id: "sonarqube_token"
+          secret: "${SONARQUBE_TOKEN}"
+          description: "SonarQube Token"
+
+jenkins:
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+      - id: jenkins
+        password: jenkinspw
+
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Read:anonymous"
+        - "Overall/Administer:authenticated"
+
+unclassified:
+  location:
+    url: http://localhost:8080/
+
+  gitlabconnectionconfig:
+    connections:
+    - apiTokenId: gitlab_token
+      clientBuilderId: "autodetect"
+      connectionTimeout: 20
+      ignoreCertificateErrors: true
+      name: "my_gitlab_server"
+      readTimeout: 10
+      url: "http://gitlab/"
+  
+  sonarGlobalConfiguration:
+    buildWrapperEnabled: true
+    installations:
+    - credentialsId: "sonarqube_token"
+      name: "SonarQube Server"
+      serverUrl: "http://sonarqube:9000"
+      triggers:
+        skipScmCause: false
+        skipUpstreamCause: false
+
+jobs:
+  - script: >
+      pipelineJob('tests-master') {
+        definition {
+          cps {
+            script('''
+              node {
+                  stage("Clone the project") {
+                      def scmVars = checkout([
+                          $class: 'GitSCM',
+                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab/root/demo.git'],
+                          branches: [[name: '*/master']],
+                          doGenerateSubmoduleConfigurations: false,
+                          extensions: [],
+                          submoduleCfg: [],
+                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab/root/demo.git']]])
+                      env.FULL_PATH_BRANCH = scmVars.GIT_BRANCH
+                      env.GIT_BRANCH = "${FULL_PATH_BRANCH.replaceFirst((/^origin\//, '')}" // remove "origin/"
+                  }
+                
+                  stage("Compilation") {
+                      sh "chmod +x ./mvnw"
+                      sh "./mvnw clean install -DskipTests"
+                  }
+                  
+                  stage("Tests") {
+                      try {
+                          sh "./mvnw test"
+                      } catch(err) {
+                          junit allowEmptyResults: true, testResults: '**/surefire-reports/*.xml'
+                          throw err
+                      }
+                      junit allowEmptyResults: true, testResults: '**/surefire-reports/*.xml'
+                  }
+                  
+                  stage("SonarQube") {
+                      withSonarQubeEnv('SonarQube Server') {
+                          sh "./mvnw ^${SONAR_MAVEN_GOAL} -Dsonar.branch.name=^${env.GIT_BRANCH} -Dsonar.host.url=^${SONAR_HOST_URL} -Dsonar.login=^${SONAR_AUTH_TOKEN}"
+                      }
+                  }
+              }
+            '''.stripIndent())
+            sandbox()
+          }
+        }
+      }
+  - script: >
+      pipelineJob('tests-release-1.0') {
+        definition {
+          cps {
+            script('''
+              node {
+                  stage("Clone the project") {
+                      def scmVars = checkout([
+                          $class: 'GitSCM',
+                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab/root/demo.git'],
+                          branches: [[name: '*/release/1.0']],
+                          doGenerateSubmoduleConfigurations: false,
+                          extensions: [],
+                          submoduleCfg: [],
+                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab/root/demo.git']]])
+                      env.FULL_PATH_BRANCH = scmVars.GIT_BRANCH
+                      env.GIT_BRANCH = "${FULL_PATH_BRANCH.replaceFirst((/^origin\//, '')}" // remove "origin/"
+                  }
+                
+                  stage("Compilation") {
+                      sh "chmod +x ./mvnw"
+                      sh "./mvnw clean install -DskipTests"
+                  }
+                  
+                  stage("Tests") {
+                      try {
+                          sh "./mvnw test"
+                      } catch(err) {
+                          junit allowEmptyResults: true, testResults: '**/surefire-reports/*.xml'
+                          throw err
+                      }
+                      junit allowEmptyResults: true, testResults: '**/surefire-reports/*.xml'
+                  }
+                  
+                  stage("SonarQube") {
+                      withSonarQubeEnv('SonarQube Server') {
+                          sh "./mvnw ^${SONAR_MAVEN_GOAL} -Dsonar.branch.name=^${env.GIT_BRANCH} -Dsonar.host.url=^${SONAR_HOST_URL} -Dsonar.login=^${SONAR_AUTH_TOKEN}"
+                      }
+                  }
+              }
+            '''.stripIndent())
+            sandbox()
+          }
+        }
+      }
