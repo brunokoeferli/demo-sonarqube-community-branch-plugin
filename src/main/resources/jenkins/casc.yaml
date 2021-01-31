@@ -45,7 +45,7 @@ unclassified:
       ignoreCertificateErrors: true
       name: "GitLab Server"
       readTimeout: 10
-      url: "http://gitlab/"
+      url: "http://gitlab:8000/"
   
   sonarGlobalConfiguration:
     buildWrapperEnabled: true
@@ -67,14 +67,14 @@ jobs:
                   stage("Clone the project") {
                       def scmVars = checkout([
                           $class: 'GitSCM',
-                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab/root/demo.git'],
+                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab:8000/root/demo.git'],
                           branches: [[name: '*/master']],
                           doGenerateSubmoduleConfigurations: false,
                           extensions: [],
                           submoduleCfg: [],
-                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab/root/demo.git']]])
+                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab:8000/root/demo.git']]])
                       env.FULL_PATH_BRANCH = scmVars.GIT_BRANCH
-                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\//, '')}" // remove "origin/"
+                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\\//, '')}" // remove "origin/"
                   }
                 
                   stage("build") {
@@ -112,14 +112,14 @@ jobs:
                   stage("Clone the project") {
                       def scmVars = checkout([
                           $class: 'GitSCM',
-                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab/root/demo.git'],
+                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab:8000/root/demo.git'],
                           branches: [[name: '*/release/1.0']],
                           doGenerateSubmoduleConfigurations: false,
                           extensions: [],
                           submoduleCfg: [],
-                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab/root/demo.git']]])
+                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab:8000/root/demo.git']]])
                       env.FULL_PATH_BRANCH = scmVars.GIT_BRANCH
-                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\//, '')}" // remove "origin/"
+                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\\//, '')}" // remove "origin/"
                   }
                 
                   stage("build") {
@@ -162,10 +162,10 @@ jobs:
                 secretToken('286342d2ee8dfbe063917e2b91b34d60')
                 noteRegex('Go Jenkins')
                 setBuildDescription(true)
+                skipWorkInProgressMergeRequest(true)
                 triggerOnMergeRequest(true)
                 triggerOnNoteRequest(true)
                 triggerOnPipelineEvent(true)
-                triggerOnPush(true)
                 triggerOpenMergeRequestOnPush('source')
               }
             }
@@ -178,14 +178,14 @@ jobs:
                   stage("Clone the project") {
                       def scmVars = checkout([
                           $class: 'GitSCM',
-                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab/root/demo.git'],
+                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab:8000/root/demo.git'],
                           branches: [[name: 'origin/^${gitlabSourceBranch}']],
                           doGenerateSubmoduleConfigurations: false,
                           extensions: [],
                           submoduleCfg: [],
-                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab/root/demo.git']]])
+                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab:8000/root/demo.git']]])
                       env.FULL_PATH_BRANCH = scmVars.GIT_BRANCH
-                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\//, '')}" // remove "origin/"
+                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\\//, '')}" // remove "origin/"
                   }
 
                   gitlabBuilds(builds: ["build", "test", "analyze"]) {

@@ -4,8 +4,8 @@ Demo scenario using [Sonarqube Community Branch Plugin](https://github.com/mc1ar
 
 The Jenkins instance is setup with 3 Pipeline jobs:
 
-* [tests-master](http://localhost:8080/job/tests-master/): Running `build, test, analyze' on *master* branch
-* [tests-release-1.0](http://localhost:8080/job/tests-release-1.0/): Running `build, test, analyze' on *release-1.0* branch
+* [tests-master](http://localhost:8080/job/tests-master/): Running *build, test, analyze* on `master` branch
+* [tests-release-1.0](http://localhost:8080/job/tests-release-1.0/): Running *build, test, analyze* on `release-1.0` branch
 * [merge-request](http://localhost:8080/job/merge-request/): Triggered by Merge Requests in GitLab
 
 ## System Requirements
@@ -31,6 +31,8 @@ export GITLAB_HOME=/srv/gitlab
 export SONAR_HOME=/srv/sonar
 export POSTGRESQL_HOME=/srv/postgresql
 
+sudo mkdir /srv
+sudo chown -R <OWNER>:<GROUP> /srv
 mkdir -p $JENKINS_HOME
 mkdir -p $GITLAB_HOME
 mkdir -p $SONAR_HOME
@@ -54,7 +56,20 @@ sudo rm -rf /srv/*
 
 #### GitLab
 
-1. Create new project in GitLab based on [Spring Template](https://gitlab.com/gitlab-org/project-templates/spring): name=demo
+1. Set initial password (for user `root`): `gitlabpw`
+1. Deactivate [Auto DevOps pipeline for all projects](http://localhost:8000/admin/application_settings/ci_cd#js-ci-cd-settings)
+1. Create [new project](http://localhost:8000/projects/new#create_from_template) in GitLab based on [Spring Template](https://gitlab.com/gitlab-org/project-templates/spring):
+
+     ```markdown
+     Project name = demo
+     ```
+
+1. Create [new branch](http://localhost:8000/root/demo/-/branches/new)
+
+     ```markdown
+     Branch name = release/1.0
+     ```
+
 1. Create [GitLab API Token](http://localhost:8000/-/profile/personal_access_tokens) for Jenkins
 
      ```markdown
@@ -82,39 +97,48 @@ sudo rm -rf /srv/*
 
 #### SonarQube
 
+1. Login: `admin / admin`
 1. Create [Token](http://localhost:9000/admin/users) for Jenkins
 1. Create [Webhook](http://localhost:9000/admin/webhooks)
 
      ```markdown
-     URL = http://jenkins:8080/sonarqube-webhook/
+     Name = Jenkins
+     URL  = http://jenkins:8080/sonarqube-webhook/
      ```
 
 1. Configure SonarQube ALM Integration GitLab
    * Create GitLab [Configuration](http://localhost:9000/admin/settings?category=almintegration)
 
      ```markdown
-     API URL = http://gitlab/api/v4
+     API URL = http://gitlab:8000/api/v4
      Token   = < GitLab API Token for SonarQube >
-     ```
-
-   * Enable [Pull Request Decoration](http://localhost:9000/project/settings?category=pull_request_decoration_binding&id=com.example%3Ademo)
-
-     ```markdown
-     Project ID = root/demo
      ```
 
 #### Jenkins
 
-* Login: `jenkins / jenkinspw`
-* Update API token for [GitLab Credential](http://localhost:8080/credentials/store/system/domain/_/credential/gitlab_token/update)
-* Update Secret for [SonarQube Credential](http://localhost:8080/credentials/store/system/domain/_/credential/sonarqube_token/update)
+1. Login: `jenkins / jenkinspw`
+1. Update API token for [GitLab Credential](http://localhost:8080/credentials/store/system/domain/_/credential/gitlab_token/update)
+1. Update Secret for [SonarQube Credential](http://localhost:8080/credentials/store/system/domain/_/credential/sonarqube_token/update)
+1. Run Jenkins job `tests-master`
+1. Run Jenkins job `tests-release-1.0`
 
-## Result
+## GitLab Merge Request
 
-GitLab Merge Request Decoration:  
+1. Enable [Pull Request Decoration](http://localhost:9000/project/settings?category=pull_request_decoration_binding&id=com.example%3Ademo) in SonarQube
+
+     ```markdown
+     Configuration name = < select gitlab >
+     Project ID         = root/demo
+     ```
+
+1. Start a new merge request by changing [README.md](http://localhost:8000/-/ide/project/root/demo/tree/master/-/README.md/) file
+
+### Result: GitLab Merge Request Decoration
+
 ![GitLab Merge Request Decoration by SonarQube analysis](img/gitlab_merge_request_decoration.png)
 
-SonarQube Branch View:  
+### Result: SonarQube Branch View
+
 ![SonarQube Branch View](img/sonarqube_branch_view.png)
 
 ## Issues with Sonarqube Community Branch Plugin
