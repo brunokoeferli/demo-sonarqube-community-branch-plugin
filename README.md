@@ -23,7 +23,7 @@ URLs:
 * GitLab - <http://localhost:8000>
 * SonarQube - <http://localhost:9000>
 
-### Docker Installation
+### Docker Compose
 
 ```bash
 export JENKINS_HOME=/srv/jenkins
@@ -44,7 +44,7 @@ sysctl -w vm.max_map_count=262144
 docker-compose up -d --build
 ```
 
-Uninstall/Cleanup Docker Installation:
+Uninstall/Cleanup Docker Compose:
 
 ```bash
 docker-compose down
