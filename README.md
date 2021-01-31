@@ -109,6 +109,14 @@ sudo rm -rf /srv/*
 * Update API token for [GitLab Credential](http://localhost:8080/credentials/store/system/domain/_/credential/gitlab_token/update)
 * Update Secret for [SonarQube Credential](http://localhost:8080/credentials/store/system/domain/_/credential/sonarqube_token/update)
 
+## Result
+
+GitLab Merge Request Decoration:  
+![GitLab Merge Request Decoration by SonarQube analysis](img/gitlab_merge_request_decoration.png)
+
+SonarQube Branch View:  
+![SonarQube Branch View](img/sonarqube_branch_view.png)
+
 ## Issues with Sonarqube Community Branch Plugin
 
 * *Sonarqube Community Branch Plugin* removes all comments in Merge Request after each *Pull Request Analysis* and recreates the decoration comments: see [Issue #141](https://github.com/mc1arke/sonarqube-community-branch-plugin/issues/141)  
