@@ -35,8 +35,8 @@ services:
        - '$GITLAB_HOME/data:/var/opt/gitlab'
  
    sonarqube:
-       image: sonarqube:8.6.1-community
-       container_name: sonar
+       image: sonarqube:8.5.1-community
+       container_name: sonarqube
        hostname: 'sonarqube'
        networks:
            - ci

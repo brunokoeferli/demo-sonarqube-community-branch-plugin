@@ -43,7 +43,7 @@ unclassified:
       clientBuilderId: "autodetect"
       connectionTimeout: 20
       ignoreCertificateErrors: true
-      name: "my_gitlab_server"
+      name: "GitLab Server"
       readTimeout: 10
       url: "http://gitlab/"
   
@@ -74,15 +74,15 @@ jobs:
                           submoduleCfg: [],
                           userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab/root/demo.git']]])
                       env.FULL_PATH_BRANCH = scmVars.GIT_BRANCH
-                      env.GIT_BRANCH = "${FULL_PATH_BRANCH.replaceFirst((/^origin\//, '')}" // remove "origin/"
+                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\//, '')}" // remove "origin/"
                   }
                 
-                  stage("Compilation") {
+                  stage("build") {
                       sh "chmod +x ./mvnw"
                       sh "./mvnw clean install -DskipTests"
                   }
                   
-                  stage("Tests") {
+                  stage("test") {
                       try {
                           sh "./mvnw test"
                       } catch(err) {
@@ -92,7 +92,7 @@ jobs:
                       junit allowEmptyResults: true, testResults: '**/surefire-reports/*.xml'
                   }
                   
-                  stage("SonarQube") {
+                  stage("analyze") {
                       withSonarQubeEnv('SonarQube Server') {
                           sh "./mvnw ^${SONAR_MAVEN_GOAL} -Dsonar.branch.name=^${env.GIT_BRANCH} -Dsonar.host.url=^${SONAR_HOST_URL} -Dsonar.login=^${SONAR_AUTH_TOKEN}"
                       }
@@ -119,15 +119,15 @@ jobs:
                           submoduleCfg: [],
                           userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab/root/demo.git']]])
                       env.FULL_PATH_BRANCH = scmVars.GIT_BRANCH
-                      env.GIT_BRANCH = "${FULL_PATH_BRANCH.replaceFirst((/^origin\//, '')}" // remove "origin/"
+                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\//, '')}" // remove "origin/"
                   }
                 
-                  stage("Compilation") {
+                  stage("build") {
                       sh "chmod +x ./mvnw"
                       sh "./mvnw clean install -DskipTests"
                   }
                   
-                  stage("Tests") {
+                  stage("test") {
                       try {
                           sh "./mvnw test"
                       } catch(err) {
@@ -137,9 +137,97 @@ jobs:
                       junit allowEmptyResults: true, testResults: '**/surefire-reports/*.xml'
                   }
                   
-                  stage("SonarQube") {
+                  stage("analyze") {
                       withSonarQubeEnv('SonarQube Server') {
                           sh "./mvnw ^${SONAR_MAVEN_GOAL} -Dsonar.branch.name=^${env.GIT_BRANCH} -Dsonar.host.url=^${SONAR_HOST_URL} -Dsonar.login=^${SONAR_AUTH_TOKEN}"
+                      }
+                  }
+              }
+            '''.stripIndent())
+            sandbox()
+          }
+        }
+      }
+  - script: >
+      pipelineJob('merge-request') {
+        properties {
+          gitLabConnection{
+            gitLabConnection('GitLab Server')
+          }
+          pipelineTriggers {
+            triggers {
+              gitlab {
+                cancelPendingBuildsOnUpdate(false)
+                ciSkip(true)
+                secretToken('286342d2ee8dfbe063917e2b91b34d60')
+                noteRegex('Go Jenkins')
+                setBuildDescription(true)
+                triggerOnMergeRequest(true)
+                triggerOnNoteRequest(true)
+                triggerOnPipelineEvent(true)
+                triggerOnPush(true)
+                triggerOpenMergeRequestOnPush('source')
+              }
+            }
+          }
+        }
+        definition {
+          cps {
+            script('''
+              node {
+                  stage("Clone the project") {
+                      def scmVars = checkout([
+                          $class: 'GitSCM',
+                          browser: [$class: 'GitLab', repoUrl: 'http://gitlab/root/demo.git'],
+                          branches: [[name: 'origin/^${gitlabSourceBranch}']],
+                          doGenerateSubmoduleConfigurations: false,
+                          extensions: [],
+                          submoduleCfg: [],
+                          userRemoteConfigs: [[credentialsId: 'gitlab_login', url: 'http://gitlab/root/demo.git']]])
+                      env.FULL_PATH_BRANCH = scmVars.GIT_BRANCH
+                      env.GIT_BRANCH = "^${FULL_PATH_BRANCH.replaceFirst(/^origin\//, '')}" // remove "origin/"
+                  }
+
+                  gitlabBuilds(builds: ["build", "test", "analyze"]) {
+                      stage("build") {
+                          gitlabCommitStatus("build") {
+                              sh "chmod +x ./mvnw"
+                              sh "./mvnw clean install -DskipTests"
+                          }
+                      }
+                      
+                      stage("test") {
+                          gitlabCommitStatus("test") {
+                              try {
+                                  sh "./mvnw test"
+                              } catch(err) {
+                                  junit allowEmptyResults: true, testResults: '**/surefire-reports/*.xml'
+                                  throw err
+                              }
+                              junit allowEmptyResults: true, testResults: '**/surefire-reports/*.xml'
+                          }
+                      }
+                      
+                      stage("analyze") {
+                          updateGitlabCommitStatus name: 'analyze', state: 'pending'
+                          withSonarQubeEnv('SonarQube Server') {
+                              sh """./mvnw ^${SONAR_MAVEN_GOAL} \
+                              -Dsonar.pullrequest.key=^${gitlabMergeRequestId} -Dsonar.pullrequest.branch=^${gitlabSourceBranch} -Dsonar.pullrequest.base=^${gitlabTargetBranch} \
+                              -Dsonar.host.url=^${SONAR_HOST_URL} -Dsonar.login=^${SONAR_AUTH_TOKEN}"""
+                          }
+                      }
+                  }
+              }
+
+              stage("Quality Gate") {
+                  timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+                      def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv
+                      if (qg.status != 'OK') {
+                          updateGitlabCommitStatus name: 'analyze', state: 'failed'
+                          addGitLabMRComment(comment: 'Found SonarQube issue(s)')
+                          error "Pipeline aborted due to quality gate failure: ^${qg.status}"
+                      } else {
+                          updateGitlabCommitStatus name: 'analyze', state: 'success'
                       }
                   }
               }
